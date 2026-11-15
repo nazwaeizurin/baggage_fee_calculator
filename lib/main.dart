@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; // Required: clickable GitHub link
+import 'package:url_launcher/url_launcher.dart'; // clickable GitHub link
 
 void main() {
   runApp(const MyApp());
-}
-
-// Lab 5: keep the theme colours together.
-class AppColors {
-  static const Color colorPrimary = Colors.deepPurple;
-  static const Color colorOnPrimary = Colors.white;
 }
 
 class MyApp extends StatelessWidget {
@@ -19,16 +13,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Excess Baggage Fee',
       debugShowCheckedModeBanner: false,
-      // Lab 5: ThemeData + ColorScheme.fromSeed() + copyWith().
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.colorPrimary,
-        ).copyWith(
-          primary: AppColors.colorPrimary,
-          onPrimary: AppColors.colorOnPrimary,
-        ),
-      ),
+      // Lab 5/6: warna tema aplikasi
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple, useMaterial3: true),
       home: const HomePage(),
     );
   }
@@ -43,22 +29,17 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   // Text field controllers
-  final TextEditingController weightController =
-  TextEditingController();
+  final TextEditingController weightController = TextEditingController();
+  final TextEditingController rateController = TextEditingController();
 
-  final TextEditingController rateController =
-  TextEditingController();
+  String? weightError;
+  String? rateError;
 
   // Selected ticket class
   String? selectedClass = 'Economy';
 
-  // Selected bottom navigation page
-  int selectedPage = 0;
-
-  // Home screen selection
-  // 0 = Welcome, 1 = Enter Details,
-  // 2 = Result, 3 = Invalid Details
-  int currentScreen = 0;
+  // Screen names: welcome, calculator, result, about
+  String currentScreen = 'welcome';
 
   // Calculation results
   double baggageWeight = 0;
@@ -68,9 +49,6 @@ class _HomePageState extends State<HomePage> {
   double excessCharge = 0;
   double serviceTax = 0;
   double totalAmount = 0;
-
-  // Error message
-  String errorMessage = '';
 
   // Get baggage allowance
   double getAllowedWeight() {
@@ -84,13 +62,7 @@ class _HomePageState extends State<HomePage> {
   // Show message using SnackBar
   void showMessage(String message) {
     ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   // Show ticket class information dialog
@@ -99,18 +71,11 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          icon: const Icon(
-            Icons.info,
-            color: Colors.deepPurple,
-            size: 40,
-          ),
-          title: const Text(
-            'About Ticket Class',
-            textAlign: TextAlign.center,
-          ),
+          icon: const Icon(Icons.info, color: Colors.deepPurple, size: 40),
+          title: const Text('About Ticket Class', textAlign: TextAlign.center),
           content: const Text(
             'Economy: Maximum baggage allowance is 20 kg.\n\n'
-                'Business: Maximum baggage allowance is 40 kg.',
+            'Business: Maximum baggage allowance is 40 kg.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -129,54 +94,44 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Lab 4: an if statement gives friendly error messages for invalid input.
-  // The original 'Oops!' page is kept, so the UI remains the same.
-  void showInputError(String message) {
-    setState(() {
-      errorMessage = message;
-      currentScreen = 3;
-    });
+  // Lab 4 + Lab 5: Check user input
+  // The assignment allows decimal values such as 42.5 kg.
+
+  String? checkInput(String value) {
+    double? number = double.tryParse(value);
+
+    if (value.trim().isEmpty) {
+      return 'Please enter a number.';
+    } else if (number == null || !number.isFinite || number < 0) {
+      return 'Please enter a valid number.';
+    } else if (value.contains('.') && value.split('.')[1].length > 2) {
+      return 'Maximum 2 decimal places allowed.';
+    }
+
+    return null;
   }
 
-  // Lab 4 + Lab 5: TextEditingController and double.tryParse().
-  // The assignment allows decimal values such as 42.5 kg.
   void calculateFee() {
-    if (weightController.text.trim().isEmpty) {
-      showInputError('Please enter your baggage weight.');
+    String weightText = weightController.text.trim();
+    String rateText = rateController.text.trim();
+
+    double? weight = double.tryParse(weightText);
+    double? rate = double.tryParse(rateText);
+
+    setState(() {
+      weightError = checkInput(weightText);
+      rateError = checkInput(rateText);
+    });
+
+    if (weightError != null || rateError != null) {
       return;
     }
 
-    final double? enteredWeight =
-    double.tryParse(weightController.text.trim());
-
-    if (enteredWeight == null ||
-        !enteredWeight.isFinite ||
-        enteredWeight < 0) {
-      showInputError('Enter a valid weight (0 kg or more).');
-      return;
-    }
-
-    if (rateController.text.trim().isEmpty) {
-      showInputError('Please enter the excess baggage rate.');
-      return;
-    }
-
-    final double? enteredRate =
-    double.tryParse(rateController.text.trim());
-
-    if (enteredRate == null ||
-        !enteredRate.isFinite ||
-        enteredRate < 0) {
-      showInputError('Enter a valid rate (RM 0 or more).');
-      return;
-    }
-
-    // The formulas are exactly those in the assignment handout.
-    baggageWeight = enteredWeight;
-    baggageRate = enteredRate;
+    // Calculate baggage fee
+    baggageWeight = weight!;
+    baggageRate = rate!;
     allowedWeight = getAllowedWeight();
 
-    // Excess baggage cannot be negative.
     if (baggageWeight > allowedWeight) {
       excessWeight = baggageWeight - allowedWeight;
     } else {
@@ -188,13 +143,14 @@ class _HomePageState extends State<HomePage> {
     totalAmount = excessCharge + serviceTax;
 
     if (!totalAmount.isFinite) {
-      showInputError('The amount is too large. Please check your numbers.');
+      setState(() {
+        rateError = 'Amount is too large.';
+      });
       return;
     }
 
-    // Lab 2: refresh the screen after calculating.
     setState(() {
-      currentScreen = 2;
+      currentScreen = 'result';
     });
   }
 
@@ -212,20 +168,20 @@ class _HomePageState extends State<HomePage> {
       excessCharge = 0;
       serviceTax = 0;
       totalAmount = 0;
-      errorMessage = '';
-      currentScreen = 1;
+      currentScreen = 'calculator';
+      weightError = null;
+      rateError = null;
     });
   }
 
   // Return to welcome page
   void goToHome() {
     setState(() {
-      selectedPage = 0;
-      currentScreen = 0;
+      currentScreen = 'welcome';
     });
   }
 
-  // Assignment requirement: the About button must open the GitHub URL.
+  // button must open the GitHub URL.
   // url_launcher is the one additional package beyond Labs 1-5.
   Future<void> openGitHub() async {
     final Uri githubUrl = Uri.parse(
@@ -254,71 +210,103 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    String pageTitle = 'Excess Baggage Fee';
+    if (currentScreen == 'about') {
+      pageTitle = 'About';
+    } else if (currentScreen == 'result') {
+      pageTitle = 'Calculation Result';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          selectedPage == 1
-              ? 'About'
-              : currentScreen == 2
-              ? 'Calculation Result'
-              : 'Excess Baggage Fee',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          pageTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
         centerTitle: true,
       ),
 
-      // Display selected page
-      body: selectedPage == 1
-          ? buildAboutPage()
-          : buildSelectedHomeScreen(),
+      // Navigation menu (Drawer): the hamburger icon appears in the AppBar.
+      drawer: Drawer(
+        child: ListView(
+          children: [
+            Container(
+              height: 70,
+              color: Colors.deepPurple,
+              padding: const EdgeInsets.all(12),
+              child: const Text(
+                'Excess Baggage Fee',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
 
-      // Bottom navigation
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedPage,
-        selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Colors.grey,
-        onTap: (index) {
-          setState(() {
-            selectedPage = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.info),
-            label: 'About',
-          ),
-        ],
+            // An extra Calculator choice on the Welcome page.
+            if (currentScreen != 'welcome')
+              ListTile(
+                leading: const Icon(Icons.home),
+                title: const Text('Home'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    currentScreen = 'welcome';
+                  });
+                },
+              ),
+
+            if (currentScreen == 'welcome' || currentScreen == 'about')
+              ListTile(
+                leading: const Icon(Icons.calculate),
+                title: const Text('Calculator'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    currentScreen = 'calculator';
+                  });
+                },
+              ),
+
+            if (currentScreen != 'about')
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('About'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    currentScreen = 'about';
+                  });
+                },
+              ),
+          ],
+        ),
       ),
+
+      // Lab 6: SafeArea keeps the body away from system UI areas.
+      // The existing pages use SingleChildScrollView for long content.
+      body: SafeArea(child: buildSelectedHomeScreen()),
     );
   }
 
-  // Select home screen
+  // Choose the screen to display.
   Widget buildSelectedHomeScreen() {
-    if (currentScreen == 0) {
+    if (currentScreen == 'welcome') {
       return buildWelcomePage();
-    } else if (currentScreen == 1) {
+    } else if (currentScreen == 'calculator') {
       return buildDetailsPage();
-    } else if (currentScreen == 2) {
+    } else if (currentScreen == 'result') {
       return buildResultPage();
     } else {
-      return buildErrorPage();
+      return buildAboutPage();
     }
   }
 
-  // Common purple button
-  Widget purpleButton({
-    required String text,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
+  // purple button
+  Widget purpleButton(String text, IconData icon, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
@@ -356,16 +344,8 @@ class _HomePageState extends State<HomePage> {
             child: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.flight,
-                  size: 90,
-                  color: Colors.deepPurple,
-                ),
-                Icon(
-                  Icons.luggage,
-                  size: 65,
-                  color: Colors.deepPurple,
-                ),
+                Icon(Icons.flight, size: 90, color: Colors.deepPurple),
+                Icon(Icons.luggage, size: 65, color: Colors.deepPurple),
               ],
             ),
           ),
@@ -386,16 +366,14 @@ class _HomePageState extends State<HomePage> {
 
           const Text(
             'Simple. Fast. Accurate.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.deepPurple,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.deepPurple),
           ),
 
           const SizedBox(height: 25),
 
           // Baggage allowance information
           Card(
+            elevation: 2, // Lab 7: subtle Material card shadow.
             color: Colors.deepPurple.shade50,
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -403,15 +381,12 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   const Row(
                     children: [
-                      Icon(
-                        Icons.info,
-                        color: Colors.deepPurple,
-                      ),
+                      Icon(Icons.info, color: Colors.deepPurple),
                       SizedBox(width: 10),
-                      Text(
-                        'Baggage Allowance Information',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          'Baggage Allowance Information',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -419,52 +394,59 @@ class _HomePageState extends State<HomePage> {
 
                   const Divider(),
 
-                  const Row(
-                    mainAxisAlignment:
-                    MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
+                  // Lab 7: Responsive baggage information
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      double itemWidth = constraints.maxWidth;
+                      if (constraints.maxWidth >= 300) {
+                        itemWidth = (constraints.maxWidth - 12) / 2;
+                      }
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
                         children: [
-                          Icon(
-                            Icons.luggage,
-                            color: Colors.deepPurple,
-                            size: 30,
+                          SizedBox(
+                            width: itemWidth,
+                            child: const Column(
+                              children: [
+                                Icon(
+                                  Icons.luggage,
+                                  color: Colors.deepPurple,
+                                  size: 30,
+                                ),
+                                Text('Economy'),
+                                Text(
+                                  '20 kg',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
                           ),
-                          Text('Economy'),
-                          Text(
-                            '20 kg',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                          SizedBox(
+                            width: itemWidth,
+                            child: const Column(
+                              children: [
+                                Icon(
+                                  Icons.work,
+                                  color: Colors.deepPurple,
+                                  size: 30,
+                                ),
+                                Text('Business'),
+                                Text(
+                                  '40 kg',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
-                      Column(
-                        children: [
-                          Icon(
-                            Icons.work,
-                            color: Colors.deepPurple,
-                            size: 30,
-                          ),
-                          Text('Business'),
-                          Text(
-                            '40 kg',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
 
                   const Divider(),
 
-                  const Icon(
-                    Icons.percent,
-                    color: Colors.deepPurple,
-                    size: 30,
-                  ),
+                  const Icon(Icons.percent, color: Colors.deepPurple, size: 30),
 
                   const Text('Service Tax: 8%'),
                 ],
@@ -474,15 +456,11 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 25),
 
-          purpleButton(
-            text: 'Start Calculating',
-            icon: Icons.calculate,
-            onPressed: () {
-              setState(() {
-                currentScreen = 1;
-              });
-            },
-          ),
+          purpleButton('Start Calculating', Icons.calculate, () {
+            setState(() {
+              currentScreen = 'calculator';
+            });
+          }),
         ],
       ),
     );
@@ -497,48 +475,50 @@ class _HomePageState extends State<HomePage> {
         children: [
           const Row(
             children: [
-              Icon(
-                Icons.calculate,
-                size: 35,
-                color: Colors.deepPurple,
-              ),
+              Icon(Icons.calculate, size: 60, color: Colors.deepPurple),
               SizedBox(width: 12),
-              Text(
-                'Enter Details',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Enter Details',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text('Fill in the information below:'),
+                  ],
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 5),
-
-          const Text('Fill in the information below:'),
 
           const SizedBox(height: 25),
 
           // Baggage weight
           const Text(
             '1. Baggage Weight (kg)',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
 
           const SizedBox(height: 10),
 
           TextField(
             controller: weightController,
-            keyboardType:
-            const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
+
+            onChanged: (value) {
+              setState(() {
+                weightError = checkInput(value);
+              });
+            },
+
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              hintText: 'e.g. 25',
+              hintText: 'e.g. 25.00',
               prefixIcon: const Icon(Icons.luggage),
+              errorText: weightError,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
               ),
@@ -553,18 +533,12 @@ class _HomePageState extends State<HomePage> {
               const Expanded(
                 child: Text(
                   '2. Ticket Class',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
               IconButton(
                 onPressed: showTicketInformation,
-                icon: const Icon(
-                  Icons.info_outline,
-                  color: Colors.deepPurple,
-                ),
+                icon: const Icon(Icons.info_outline, color: Colors.deepPurple),
                 tooltip: 'Ticket class information',
               ),
             ],
@@ -598,133 +572,53 @@ class _HomePageState extends State<HomePage> {
           // Baggage rate
           const Text(
             '3. Excess Baggage Rate (RM/kg)',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
 
           const SizedBox(height: 10),
 
           TextField(
             controller: rateController,
-            keyboardType:
-            const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
+
+            onChanged: (value) {
+              setState(() {
+                rateError = checkInput(value);
+              });
+            },
+
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              hintText: 'e.g. 15',
+              hintText: 'e.g. 15.00',
               prefixIcon: const Icon(Icons.sell),
+              errorText: rateError,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
               ),
-              helperText:
-              'Enter the rate provided by your airline.',
+              helperText: 'Enter the rate provided by your airline.',
             ),
           ),
 
           const SizedBox(height: 25),
 
-          purpleButton(
-            text: 'Calculate',
-            icon: Icons.calculate,
-            onPressed: calculateFee,
-          ),
+          purpleButton('Calculate', Icons.calculate, calculateFee),
 
           const SizedBox(height: 15),
-
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: goToHome,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back to Home'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.deepPurple,
-                padding: const EdgeInsets.all(16),
-                side: const BorderSide(
-                  color: Colors.deepPurple,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-            ),
-          ),
-
-
-
-          const SizedBox(height: 15),
-
-          // Tip information
-          Card(
-            color: Colors.deepPurple.shade50,
-            child: const Padding(
-              padding: EdgeInsets.all(15),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.lightbulb,
-                    color: Colors.orange,
-                    size: 35,
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Tip!',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
-                          ),
-                        ),
-                        Text(
-                          'Enter the rate provided by your airline.',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
   // Result row
-  Widget resultRow(
-      String title,
-      String value, {
-        IconData? icon,
-      }) {
+  Widget resultRow(String title, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
-          if (icon != null) ...[
-            Icon(
-              icon,
-              color: Colors.deepPurple,
-              size: 22,
-            ),
-            const SizedBox(width: 12),
-          ],
+          Icon(icon, color: Colors.deepPurple, size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text(title)),
 
-          Expanded(
-            child: Text(title),
-          ),
-
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -736,11 +630,7 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const Icon(
-            Icons.check_circle,
-            size: 85,
-            color: Colors.green,
-          ),
+          const Icon(Icons.check_circle, size: 85, color: Colors.green),
 
           const SizedBox(height: 10),
 
@@ -757,6 +647,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 20),
 
           Card(
+            elevation: 2, // Lab 7: subtle Material card shadow.
             child: Padding(
               padding: const EdgeInsets.all(15),
               child: Column(
@@ -764,19 +655,19 @@ class _HomePageState extends State<HomePage> {
                   resultRow(
                     'Ticket Class',
                     selectedClass ?? 'Economy',
-                    icon: Icons.luggage,
+                    Icons.luggage,
                   ),
 
                   resultRow(
                     'Baggage Weight',
                     '${baggageWeight.toStringAsFixed(2)} kg',
-                    icon: Icons.scale,
+                    Icons.scale,
                   ),
 
                   resultRow(
                     'Allowed Weight',
                     '${allowedWeight.toStringAsFixed(2)} kg',
-                    icon: Icons.check_circle,
+                    Icons.check_circle,
                   ),
 
                   const Divider(),
@@ -784,19 +675,19 @@ class _HomePageState extends State<HomePage> {
                   resultRow(
                     'Excess Baggage Weight',
                     '${excessWeight.toStringAsFixed(2)} kg',
-                    icon: Icons.scale,
+                    Icons.scale,
                   ),
 
                   resultRow(
                     'Excess Baggage Charge',
                     'RM ${excessCharge.toStringAsFixed(2)}',
-                    icon: Icons.payments,
+                    Icons.payments,
                   ),
 
                   resultRow(
                     'Service Tax (8%)',
                     'RM ${serviceTax.toStringAsFixed(2)}',
-                    icon: Icons.percent,
+                    Icons.percent,
                   ),
                 ],
               ),
@@ -807,6 +698,7 @@ class _HomePageState extends State<HomePage> {
 
           // Total amount
           Card(
+            elevation: 2, // Lab 7.
             color: Colors.deepPurple.shade100,
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -815,10 +707,7 @@ class _HomePageState extends State<HomePage> {
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.attach_money,
-                        color: Colors.deepPurple,
-                      ),
+                      Icon(Icons.attach_money, color: Colors.deepPurple),
                       SizedBox(width: 8),
                       Text(
                         'Total Amount Payable',
@@ -883,85 +772,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 4. INVALID DETAILS PAGE
-  Widget buildErrorPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(25),
-      child: Column(
-        children: [
-          const SizedBox(height: 35),
-
-          const Icon(
-            Icons.luggage,
-            size: 120,
-            color: Colors.deepPurple,
-          ),
-
-          const SizedBox(height: 15),
-
-          const Icon(
-            Icons.error,
-            size: 45,
-            color: Colors.redAccent,
-          ),
-
-          const SizedBox(height: 10),
-
-          const Text(
-            'Oops!',
-            style: TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.bold,
-              color: Colors.redAccent,
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          const Text(
-            'Please enter valid details.',
-            style: TextStyle(fontSize: 17),
-          ),
-
-          const SizedBox(height: 20),
-
-          Card(
-            color: Colors.red.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Row(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.warning,
-                    color: Colors.red,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(errorMessage),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 25),
-
-          purpleButton(
-            text: 'Try Again',
-            icon: Icons.refresh,
-            onPressed: () {
-              setState(() {
-                currentScreen = 1;
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   // 5. ABOUT PAGE
   Widget buildAboutPage() {
     return SingleChildScrollView(
@@ -970,11 +780,13 @@ class _HomePageState extends State<HomePage> {
         children: [
           const SizedBox(height: 20),
 
-          // Lab 2 + Lab 5: show the real app icon on the About page.
+          // Lab 6: show application icon or a fallback icon.
           Image.asset(
-            'assets/icon/passport.jpeg',
+            'assets/icon/icon.png',
             width: 110,
             height: 110,
+            errorBuilder: (context, error, stack) =>
+                const Icon(Icons.luggage, size: 110),
           ),
 
           const SizedBox(height: 20),
@@ -993,9 +805,7 @@ class _HomePageState extends State<HomePage> {
 
           const Text(
             'Travel Smart, Pay Right!',
-            style: TextStyle(
-              color: Colors.deepPurple,
-            ),
+            style: TextStyle(color: Colors.deepPurple),
           ),
 
           const SizedBox(height: 25),
@@ -1014,45 +824,29 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 15),
 
           const ListTile(
-            leading: Icon(
-              Icons.person,
-              color: Colors.deepPurple,
-            ),
-            title: Text(
-              'Name',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            leading: Icon(Icons.person, color: Colors.deepPurple),
+            title: Text('Name', style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text('NAZWA EIZURIN BINTI ROZMAN'),
           ),
 
           const ListTile(
-            leading: Icon(
-              Icons.badge,
-              color: Colors.deepPurple,
-            ),
+            leading: Icon(Icons.badge, color: Colors.deepPurple),
             title: Text(
-                'Matric No',
-                style : TextStyle(
-                    fontWeight: FontWeight.bold,
-                ),
+              'Matric No',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text('2025235182'),
           ),
 
           const ListTile(
-            leading: Icon(
-              Icons.school,
-              color: Colors.deepPurple,
-            ),
+            leading: Icon(Icons.school, color: Colors.deepPurple),
             title: Text(
               'Course',
-              style: TextStyle(
-              fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            subtitle: Text('CS251 - Bachelor of Computer Science (Hons.) Netcentric Computing '),
+            subtitle: Text(
+              'CS251 - Bachelor of Computer Science (Hons.) Netcentric Computing',
+            ),
           ),
 
           const Divider(),
@@ -1061,30 +855,35 @@ class _HomePageState extends State<HomePage> {
 
           const Text(
             '© 2026. All rights reserved.',
-            style: TextStyle(
-              color: Colors.grey,
-            ),
+            style: TextStyle(color: Colors.grey),
           ),
 
           const SizedBox(height: 15),
 
-          // Real link, not a SnackBar placeholder.
-
+          // GitHub button: opens the real repository using url_launcher.
           OutlinedButton.icon(
             onPressed: openGitHub,
             icon: Image.asset(
               'assets/icon/github.png',
               width: 24,
               height: 24,
+              errorBuilder: (context, error, stack) =>
+                  const Icon(Icons.code, size: 24),
             ),
             label: const Text(
               'nazwaeizurin',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.deepPurple,
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.deepPurple),
+          ),
+
+          // clickable repository URL too.
+          TextButton(
+            onPressed: openGitHub,
+            child: const Text(
+              'https://github.com/nazwaeizurin/baggage_fee_calculator',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12),
             ),
           ),
         ],
